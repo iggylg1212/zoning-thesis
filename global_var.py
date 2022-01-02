@@ -1,3 +1,5 @@
 import os
 
-ROOT_DIR = os.path.dirname(os.path.abspath(__file__)).replace('2scripts','')
+ROOT_DIR = 's3://thesis1212/'
+
+# s3 = boto3.resource("s3")
