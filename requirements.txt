@@ -1,3 +1,9 @@
 boto3
 pandas
 botocore
+geopandas
+shapely
+scipy
+sqlitedict
+rasterio
+pyshp

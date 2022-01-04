@@ -1,5 +1,5 @@
-from geopandas.io.file import read_file
 from global_var import *
+from geopandas.io.file import read_file
 import pandas as pd  # provides interface for interacting with tabular data
 import geopandas as gpd  # combines the capabilities of pandas and shapely for geospatial operations
 from shapely.geometry import Point, Polygon, MultiPolygon  # for manipulating text data into geospatial shapes
@@ -177,22 +177,26 @@ import os.path as path
 # public_lands.to_file('1data/gis/PAD/PAD_Concat/PAD_Concat.shp')
 
 # Concatentate
-water_wet = gpd.read_file('1data/gis/undev_land_cover/undev_land_cover.gpkg')[['geometry']]
-elev = gpd.read_file('1data/gis/undev_slope/undev_slope.gpkg')[['geometry']]
-public_lands = gpd.read_file('1data/gis/PAD/PAD_Concat/PAD_Concat.shp')[['geometry']]
+# uas = read_shapefile('gis/gis/us_urb_area_1990/reprojection_urb_area_1990', 'EPSG:4326')
 
-concat = water_wet.append(elev, ignore_index=True).append(public_lands, ignore_index=True)
+water_wet = gpd.read_file(read_s3_file('gis/gis/undev_land_cover/undev_land_cover.gpkg'), crs='EPSG:4326')[['geometry']]
+print(water_wet)
+# elev = gpd.read_file(read_file('1data/gis/undev_slope/undev_slope.gpkg') )[['geometry']]
+# public_lands = gpd.read_file(read_file('1data/gis/PAD/PAD_Concat/PAD_Concat.shp'))[['geometry']]
 
-overlap_matrix = concat['geometry'].apply(lambda x: concat.overlaps(x)).values.astype(int)
-n, ids = connected_components(overlap_matrix)
+# concat = water_wet.append(elev, ignore_index=True).append(public_lands, ignore_index=True)
 
-concat = gpd.GeoDataFrame({'geometry': concat['geometry'], 'group': ids})
-res = concat.dissolve(by='group')
-res.to_file('1data/gis/undev_concat/undev_concat.gpkg', driver='GPKG')
+# overlap_matrix = concat['geometry'].apply(lambda x: concat.overlaps(x)).values.astype(int)
+# n, ids = connected_components(overlap_matrix)
 
-# Find spatial intersection of UAs and undevelopable areas
-undev = gpd.read_file('1data/gis/undev_concat/undev_concat.gpkg')
-uas = gpd.read_file('1data/gis/us_urb_area_1990/reprojection_urb_area_1990.shp')
+# concat = gpd.GeoDataFrame({'geometry': concat['geometry'], 'group': ids})
+# res = concat.dissolve(by='group')
 
-undev_w_uas = undev.sjoin(uas, how="left", predicate='intersects')
-undev_w_uas = undev_w_uas[ undev_w_uas['index_right'].notna() ]
+# write_gpd('gis/gis/undev_concat/undev_concat.gpkg', uas, 'GPKG')
+
+# # Find spatial intersection of UAs and undevelopable areas
+# undev = gpd.read_file('1data/gis/undev_concat/undev_concat.gpkg')
+# uas = gpd.read_file('1data/gis/us_urb_area_1990/reprojection_urb_area_1990.shp')
+
+# undev_w_uas = undev.sjoin(uas, how="left", predicate='intersects')
+# undev_w_uas = undev_w_uas[ undev_w_uas['index_right'].notna() ]

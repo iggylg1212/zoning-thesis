@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 
 ###### FIMS – Parent to Children Mapping
-# fims = pd.read_sas(read_file("psid/sas/fim12196_gid_BA_2_UBL_wide.sas7bdat") , format='sas7bdat')
+# fims = pd.read_sas(read_s3_file("psid/sas/fim12196_gid_BA_2_UBL_wide.sas7bdat") , format='sas7bdat')
 
 def create_code(ids, x):
     if (not np.isnan(x[ids[0]])) or (not np.isnan(x[ids[1]])):
@@ -19,11 +19,11 @@ def create_code(ids, x):
 
 # fims = fims[['CHILD_ID', 'A_FATHER_ID', 'A_MOTHER_ID', 'FATHER_ID', 'MOTHER_ID']]
 # write_csv('psid/csv/fims.csv', fims)
-fims = pd.read_csv(read_file('psid/csv/fims.csv'))
+fims = pd.read_csv(read_s3_file('psid/csv/fims.csv'))
 ####### 1990
-psid = pd.read_csv(read_file("psid/csv/1990/J301452.csv"))
+psid = pd.read_csv(read_s3_file("psid/csv/1990/J301452.csv"))
 
-labels = pd.read_csv(read_file("psid/csv/1990/J301452_labels.txt"))
+labels = pd.read_csv(read_s3_file("psid/csv/1990/J301452_labels.txt"))
 labels = labels[2:-1]
 labels['CODE'] = labels['****** PSID DATA CENTER ************************* '].str.slice(stop=7)
 labels['VARIABLE'] = labels['****** PSID DATA CENTER ************************* '].str.slice(start= 10, stop=40).apply(lambda x: x.strip())
@@ -33,7 +33,7 @@ print(labels)
 psid['CHILD_ID'] = psid.apply(lambda x: create_code(('ER30001', 'ER30002'), x), axis=1)
 psid = psid.rename(columns=labels)
 
-child = psid[(psid['AGE OF INDIVIDUAL']<=4) & (psid['YEAR INDIVIDUAL BORN']>=1985)] # Born between 1985-1990
+child = psid[(psid['AGE OF INDIVIDUAL']<=5) & (psid['YEAR INDIVIDUAL BORN']>=1984)] # Born between 1984-1990
 child_ids = child['CHILD_ID']
 child_ids = pd.merge(child_ids, fims, how='left', on='CHILD_ID')
-print(child_ids)
+print(child_ids[ child_ids['A_FATHER_ID'].notna() | child_ids['A_MOTHER_ID'].notna() ])
