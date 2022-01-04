@@ -1,19 +1,18 @@
-from global_var import ROOT_DIR
+from geopandas.io.file import read_file
+from global_var import *
 import pandas as pd  # provides interface for interacting with tabular data
 import geopandas as gpd  # combines the capabilities of pandas and shapely for geospatial operations
 from shapely.geometry import Point, Polygon, MultiPolygon  # for manipulating text data into geospatial shapes
 from shapely import wkt  # stands for "well known text," allows for interchange across GIS programs
-import rtree  # supports geospatial join
 import pickle
+from scipy.sparse.csgraph import connected_components
 from sqlitedict import SqliteDict
 import math
 import rasterio
 import rasterio.plot
 from rasterio import features
 import numpy as np
-from tempfile import mkdtemp
 import os.path as path
-
 
 # states = [ 'AK', 'AL', 'AR', 'AZ', 'CA', 'CO', 'CT', 'DC', 'DE', 'FL', 'GA',
 #            'HI', 'IA', 'ID', 'IL', 'IN', 'KS', 'KY', 'LA', 'MA', 'MD', 'ME',
@@ -21,9 +20,9 @@ import os.path as path
 #            'NV', 'NY', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC', 'SD', 'TN', 'TX',
 #            'UT', 'VA', 'VT', 'WA', 'WI', 'WV', 'WY']
 
-# blocks = gpd.read_file(f'{ROOT_DIR}1data/gis/blocks_1990/AK_block_1990/AK_block_1990.shp', crs = {'init' :'epsg:4326'})
+# blocks = gpd.read_file(f'{ROOT_DIR}1data/gis/blocks_1990/AK_block_1990/AK_block_1990.shp')
 # for state in states[1:]:
-#     state_geo = gpd.read_file(f'{ROOT_DIR}1data/gis/blocks_1990/{state}_block_1990/{state}_block_1990.shp', crs = {'init' :'epsg:4326'})
+#     state_geo = gpd.read_file(f'{ROOT_DIR}1data/gis/blocks_1990/{state}_block_1990/{state}_block_1990.shp')
 #     blocks = blocks.append(state_geo, ignore_index=True)
 
 # pickle.dump(blocks, open(f"{ROOT_DIR}/1data/pickle/1990_blocks.p", "wb" ))
@@ -88,7 +87,7 @@ import os.path as path
 # pickle.dump(blocks, open(f"{ROOT_DIR}/1data/pickle/1990_blocks.p", "wb" ))
 # blocks = pickle.load(open("1data/pickle/1990_blocks.p",'rb'))
 
-# urban_blocks = blocks[blocks['URB_AREAA']!=9999]
+# urban_blocks = blocks[blocks['URB_AREAA']!=9999].to_crs('EPSG:4326')
 # urban_blocks.to_file('1data/gis/us_urb_blocks_1990/us_urb_blocks_1990.shp')
 
 # def numpy_centroids(geom):
@@ -107,50 +106,49 @@ import os.path as path
 
 #     uas = uas.append({'URB_AREAA':ua, 'geometry': Point(center[0] ,center[1]) }, ignore_index=True)
 
-# uas = gpd.GeoDataFrame(uas, crs={'init' :'epsg:4326'})
+# uas = gpd.GeoDataFrame(uas, crs=urban_blocks.crs).to_crs('EPSG:4326')
 # uas.to_file('1data/gis/us_urb_area_center_1990/1990_uas_center.shp')
 
-########## Undevelopable Land
-# Water and Wetlands
-land_use = {'Open Water':11, 'Perennial Ice/Snow':12, 'Developed, Open Space':21, 'Developed, Low Intensity':22, 
-            'Developed, Medium Intensity':23, 'Developed, High Intensity':24, 'Barren Land (Rock/Sand/Clay)':31, 
-            'Deciduous Forest':41, 'Evergreen Forest':42, 'Mixed Forest':43, 'Dwarf Scrub':51, 'Shrub/Scrub':52, 
-            'Grasslands/Herbaceous':71, 'Sedge/Herbaceous':72, 'Lichens':73, 'Moss':74, 'Pasture/Hay':81, 'Cultivated Crops':82, 
-            'Woody Wetlands':90, 'Emergent Herbaceous Wetlands':95}
+# ########## Undevelopable Land
+# # Water and Wetlands
+# land_use = {'Open Water':11, 'Perennial Ice/Snow':12, 'Developed, Open Space':21, 'Developed, Low Intensity':22, 
+#             'Developed, Medium Intensity':23, 'Developed, High Intensity':24, 'Barren Land (Rock/Sand/Clay)':31, 
+#             'Deciduous Forest':41, 'Evergreen Forest':42, 'Mixed Forest':43, 'Dwarf Scrub':51, 'Shrub/Scrub':52, 
+#             'Grasslands/Herbaceous':71, 'Sedge/Herbaceous':72, 'Lichens':73, 'Moss':74, 'Pasture/Hay':81, 'Cultivated Crops':82, 
+#             'Woody Wetlands':90, 'Emergent Herbaceous Wetlands':95}
 
-with rasterio.Env():
-    with rasterio.open(f'{ROOT_DIR}1data/gis/2001_land_cover/nlcd_2001_land_cover_l48_20210604.img') as src:
-        image = src.read(1)
+# with rasterio.Env():
+#     with rasterio.open(f'{ROOT_DIR}1data/gis/2001_land_cover/nlcd_2001_land_cover_l48_20210604.img') as src:
+#         image = src.read(1)
 #         mask = (image==11) | (image==90) | (image==95) # Open Water or Wetlands
 #         results = SqliteDict(f'{ROOT_DIR}1data/pickle/undev_land_cover.sqlite', autocommit=True)
 #         for i, (s, v) in enumerate(features.shapes(image, mask=mask, transform=src.transform)):
 #             results[i]= {'properties': {'raster_val': v}, 'geometry': s}
-            
-print('Geopandas')
-with SqliteDict(f'{ROOT_DIR}1data/pickle/undev_land_cover.sqlite', autocommit=True) as results:
-    undev  = gpd.GeoDataFrame.from_features(results.values(), crs = src.crs)[['geometry']]
-    undev = undev.to_crs('EPSG:4326')
-    print(len(undev))
-    print('Writing File')
-    undev.to_file('1data/gis/undev_land_cover/undev_land_cover.gpkg', driver='GPKG')
 
-## Elevation
-with rasterio.Env():
-    with rasterio.open(f'{ROOT_DIR}1data/gis/National_Slope/National_Slope.img') as src:
-        image = src.read(1)
-        mask = image >=20 # Slope greater than 20 degrees
-        image = image.astype(np.uint8)
-        results = SqliteDict(f'{ROOT_DIR}1data/pickle/undev_slope.sqlite', autocommit=True)
-        for i, (s, v) in enumerate(features.shapes(image, mask=mask, transform=src.transform)):
-            results[i]={'properties': {'raster_val': v}, 'geometry': s}
+# print('Geopandas')
+# with SqliteDict(f'{ROOT_DIR}1data/pickle/undev_land_cover.sqlite', autocommit=True) as results:
+#     undev = gpd.GeoDataFrame.from_features(results.values(), crs = src.crs)[['geometry']]
+#     undev = undev.to_crs('EPSG:4326')
+#     print(len(undev))
+#     print('Writing File')
+#     undev.to_file('1data/gis/undev_land_cover/undev_land_cover.gpkg', driver='GPKG')
 
-print('Geopandas')
-undev  = gpd.GeoDataFrame.from_features(results.values(), crs=src.crs)[['geometry']]
-undev = undev.to_crs('EPSG:4326')
-print('Writing File')
-undev.to_file('1data/gis/undev_slope/undev_slope.gpkg', driver='GPKG')
+# # Elevation
+# with rasterio.Env():
+#     with rasterio.open(f'{ROOT_DIR}1data/gis/National_Slope/National_Slope.img') as src:
+#         image = src.read(1)
+#         mask = image >=20 # Slope greater than 20 degrees
+#         fp = np.memmap('1data/pickle/numpy.memmap', mode='w+', shape=image.shape)
+#         with SqliteDict(f'{ROOT_DIR}1data/pickle/undev_slope.sqlite', autocommit=True) as results:
+#             for i, (s, v) in enumerate(features.shapes(fp, mask=mask, transform=src.transform)):
+#                 results[i] = {'properties': {'raster_val': v}, 'geometry': s}
+# print('Geopandas')
+# undev  = gpd.GeoDataFrame.from_features( results.values(), crs=src.crs)[['geometry']]
+# undev = undev.to_crs('EPSG:4326')
+# print('Writing File')
+# undev.to_file('1data/gis/undev_slope/undev_slope.gpkg', driver='GPKG')
 
-## Public Lands
+# # Public Lands
 # def pad_processor(region, set):
 #     if set == 'Marine':
 #         try:
@@ -178,3 +176,23 @@ undev.to_file('1data/gis/undev_slope/undev_slope.gpkg', driver='GPKG')
 # public_land = public_lands.to_crs('EPSG:4326')
 # public_lands.to_file('1data/gis/PAD/PAD_Concat/PAD_Concat.shp')
 
+# Concatentate
+water_wet = gpd.read_file('1data/gis/undev_land_cover/undev_land_cover.gpkg')[['geometry']]
+elev = gpd.read_file('1data/gis/undev_slope/undev_slope.gpkg')[['geometry']]
+public_lands = gpd.read_file('1data/gis/PAD/PAD_Concat/PAD_Concat.shp')[['geometry']]
+
+concat = water_wet.append(elev, ignore_index=True).append(public_lands, ignore_index=True)
+
+overlap_matrix = concat['geometry'].apply(lambda x: concat.overlaps(x)).values.astype(int)
+n, ids = connected_components(overlap_matrix)
+
+concat = gpd.GeoDataFrame({'geometry': concat['geometry'], 'group': ids})
+res = concat.dissolve(by='group')
+res.to_file('1data/gis/undev_concat/undev_concat.gpkg', driver='GPKG')
+
+# Find spatial intersection of UAs and undevelopable areas
+undev = gpd.read_file('1data/gis/undev_concat/undev_concat.gpkg')
+uas = gpd.read_file('1data/gis/us_urb_area_1990/reprojection_urb_area_1990.shp')
+
+undev_w_uas = undev.sjoin(uas, how="left", predicate='intersects')
+undev_w_uas = undev_w_uas[ undev_w_uas['index_right'].notna() ]
