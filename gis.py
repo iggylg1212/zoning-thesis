@@ -170,29 +170,28 @@ import os.path as path
 
 # public_lands = pad_processor(1,'Marine')
 # for set in sets:
-#     for region in regions:
+#     for region in regions:pip
 #         public_lands = public_lands.append(pad_processor(region, set))
 
 # public_land = public_lands.to_crs('EPSG:4326')
 # public_lands.to_file('1data/gis/PAD/PAD_Concat/PAD_Concat.shp')
 
 # Concatentate
-# uas = read_shapefile('gis/gis/us_urb_area_1990/reprojection_urb_area_1990', 'EPSG:4326')
+public_lands = gpd.read_file(f'{S3_PATH}gis/gis/PAD/PAD_Concat/PAD_Concat.shp', crs='EPSG:4326')[['geometry']]
+water_wet = gpd.read_file(f'{S3_PATH}gis/gis/undev_land_cover/undev_land_cover.gpkg', crs='EPSG:4326')[['geometry']]
+elev = gpd.read_file(f'{S3_PATH}gis/gis/undev_land_cover/undev_land_cover.gpkg', crs='EPSG:4326')[['geometry']]
 
-water_wet = gpd.read_file(read_s3_file('gis/gis/undev_land_cover/undev_land_cover.gpkg'), crs='EPSG:4326')[['geometry']]
-print(water_wet)
-# elev = gpd.read_file(read_file('1data/gis/undev_slope/undev_slope.gpkg') )[['geometry']]
-# public_lands = gpd.read_file(read_file('1data/gis/PAD/PAD_Concat/PAD_Concat.shp'))[['geometry']]
-
-# concat = water_wet.append(elev, ignore_index=True).append(public_lands, ignore_index=True)
-
-# overlap_matrix = concat['geometry'].apply(lambda x: concat.overlaps(x)).values.astype(int)
-# n, ids = connected_components(overlap_matrix)
-
-# concat = gpd.GeoDataFrame({'geometry': concat['geometry'], 'group': ids})
-# res = concat.dissolve(by='group')
-
-# write_gpd('gis/gis/undev_concat/undev_concat.gpkg', uas, 'GPKG')
+concat = water_wet.append(elev, ignore_index=True).append(public_lands, ignore_index=True)
+print('Creating Overlap')
+overlap_matrix = concat['geometry'].apply(lambda x: concat.overlaps(x)).values.astype(int)
+n, ids = connected_components(overlap_matrix)
+print('Dissolving')
+concat = gpd.GeoDataFrame({'geometry': concat['geometry'], 'group': ids})
+res = concat.dissolve(by='group')
+print('Writing File')
+res.to_file('res.gpkg', driver = 'GPKG')
+S3FS.put('res.gpkg', f'{S3_PATH}gis/gis/undev_concat/undev_concat.gpkg')
+os.remove('res.gpkg')
 
 # # Find spatial intersection of UAs and undevelopable areas
 # undev = gpd.read_file('1data/gis/undev_concat/undev_concat.gpkg')
