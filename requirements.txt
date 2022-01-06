@@ -1,5 +1,6 @@
 boto3
 os
+re
 pandas
 botocore
 geopandas
@@ -7,5 +8,7 @@ shapely
 scipy
 sqlitedict
 rasterio
+sqlite3
 pyshp
 s3fs
+openpyxl
