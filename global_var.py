@@ -1,5 +1,4 @@
 import boto3
-import shapefile
 import s3fs
 import os
 

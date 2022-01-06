@@ -1,6 +1,4 @@
 boto3
-os
-re
 pandas
 botocore
 geopandas
@@ -10,5 +8,7 @@ sqlitedict
 rasterio
 sqlite3
 pyshp
+fsspec
 s3fs
 openpyxl
+sentence_transformers
