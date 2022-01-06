@@ -184,7 +184,9 @@ water_wet = gpd.read_file('temporary.gpkg', crs='EPSG:4326')[['geometry']]
 os.remove('temporary.gpkg')
 print('Water')
 S3FS.get(f'{S3_PATH}gis/gis/undev_slope/undev_slope.gpkg', 'temporary.gpkg')
+print('got')
 elev = gpd.read_file('temporary.gpkg', crs='EPSG:4326')[['geometry']]
+print('load')
 os.remove('temporary.gpkg')
 print('Elevation')
 

@@ -5,10 +5,11 @@ import pandas as pd
 import re
 from sentence_transformers import SentenceTransformer, util
 
-CLEANR = re.compile('<.*?>|&([a-z0-9]+|#[0-9]{1,6}|#x[0-9a-f]{1,6});|\n|____________|_____|\t|---')
+CLEANR = re.compile('<.*?>|&([a-z0-9]+|#[0-9]{1,6}|#x[0-9a-f]{1,6});|\n|d-|____________|_____|\t|---')
 def cleanhtml(raw_html):
   try:
     cleantext = ' '.join(re.sub(CLEANR, '', raw_html).split())
+    cleantext = re.sub('[^A-Za-z0-9 .,!?:;]', '', cleantext).replace('content is too large for cell.', '')
   except:
     cleantext = raw_html  
   return cleantext
@@ -24,20 +25,47 @@ ticker = 0
 for filename in S3FS.ls(f'{S3_PATH}/nlp/csv/municode'):
     ticker += 1
     # print(round(ticker/tot_len , 3), end='\r', flush=True)
-  
-    block_title = re.findall('([A-Z])', filename.split('/')[-1])
-    print(block_title)
 
+    ## Attributes
+    block_title = re.findall('[A-Z][^A-Z]*', filename.split('/')[-1])
+    date = re.sub("[^0-9]", "", block_title[-1])
+    year = date[:4]
+    month = date[4:6]
+    day = date[6:]
+    state = ''.join(block_title[-10:-8])
+    muni = ' '.join(block_title[:-10])
 
+    ## Text Data
     df = pd.read_excel(f's3://{filename}')
     df.columns = df.iloc[0]
     df = df.drop(df.index[0])
     df = df.drop(columns = ['NodeId','Url'])
-    df['Content'] = df['Content'].apply(lambda x: cleanhtml(x))
-    df = df[(df['Content']!= 'Content is too large for cell.') & (df['Content'].notna())].reset_index(drop=True)
+    df = df.applymap(lambda x: cleanhtml(x)).fillna('')
     
-    # print(df)
+    df = df[~(df['Title'].str.contains('table'))].reset_index(drop=True)
+  
+    def text_creator(df):
+      df['raw_text'] = df.apply(lambda x: f'{x["Title"]} {x["Subtitle"]} {x["Content"]} ', axis=1)
+      text = df['raw_text'].str.cat()
+      return text
+    
+    raw_text = text_creator(df)
 
+    zoning_text = None
+
+    try:
+      app_idx = df[df['Title'].str.contains('appendix')].iloc[0].name
+      body = df.iloc[:app_idx]
+      appendix = df.iloc[app_idx:]
+
+      appendices = appendix[appendix['Title'].str.contains('appendix')]
+      print(appendices)
+
+    except:
+      body = df
+      appendix = None
+      
+    # print(body)
 
 # for table in conn.execute('''select name  from sqlite_master where type='table' '''):
 #     table = table[0]
