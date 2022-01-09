@@ -5,6 +5,7 @@ import geopandas as gpd  # combines the capabilities of pandas and shapely for g
 from shapely.geometry import Point, Polygon, MultiPolygon  # for manipulating text data into geospatial shapes
 from shapely import wkt  # stands for "well known text," allows for interchange across GIS programs
 import pickle
+import rtree
 from scipy.sparse.csgraph import connected_components
 from sqlitedict import SqliteDict
 import math
@@ -184,27 +185,17 @@ water_wet = gpd.read_file('temporary.gpkg', crs='EPSG:4326')[['geometry']]
 os.remove('temporary.gpkg')
 print('Water')
 S3FS.get(f'{S3_PATH}gis/gis/undev_slope/undev_slope.gpkg', 'temporary.gpkg')
-print('got')
 elev = gpd.read_file('temporary.gpkg', crs='EPSG:4326')[['geometry']]
-print('load')
 os.remove('temporary.gpkg')
 print('Elevation')
 
-concat = water_wet.append(elev, ignore_index=True).append(public_lands, ignore_index=True)
-print('Creating Overlap')
-overlap_matrix = concat['geometry'].apply(lambda x: concat.overlaps(x)).values.astype(int)
-n, ids = connected_components(overlap_matrix)
-print('Dissolving')
-concat = gpd.GeoDataFrame({'geometry': concat['geometry'], 'group': ids})
-res = concat.dissolve(by='group')
+undev = water_wet.append(elev, ignore_index=True).append(public_lands, ignore_index=True)
+
+# Find spatial intersection of UAs and undevelopable areas
+uas = gpd.read_file('s3://thesis1212/gis/gis/us_urb_area_1990/reprojection_urb_area_1990.shp', crs='EPSG:4326')
+
+uas = uas.overlay(undev, how='difference')
 print('Writing File')
-res.to_file('res.gpkg', driver = 'GPKG')
-S3FS.put('res.gpkg', f'{S3_PATH}gis/gis/undev_concat/undev_concat.gpkg')
-os.remove('res.gpkg')
-
-# # Find spatial intersection of UAs and undevelopable areas
-# undev = gpd.read_file('1data/gis/undev_concat/undev_concat.gpkg')
-# uas = gpd.read_file('1data/gis/us_urb_area_1990/reprojection_urb_area_1990.shp')
-
-# undev_w_uas = undev.sjoin(uas, how="left", predicate='intersects')
-# undev_w_uas = undev_w_uas[ undev_w_uas['index_right'].notna() ]
+uas.to_file('temporary.gpkg', driver='GPKG')
+S3FS.put(f'{S3_PATH}gis/gis/undev_concat/undev_concat.gpkg')
+os.remove('temporary.gpkg')

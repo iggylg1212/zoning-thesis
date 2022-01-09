@@ -10,5 +10,6 @@ sqlite3
 pyshp
 fsspec
 s3fs
+rtree
 openpyxl
 sentence_transformers
