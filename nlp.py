@@ -179,6 +179,6 @@ def loop(filename):
       create_row(conn, row)
 
 if __name__ == "__main__":
-  pool= Pool(processes=4)
+  pool= Pool()
   for _ in tqdm.tqdm(pool.imap_unordered(loop, tasks), total=len(tasks)):
     pass
