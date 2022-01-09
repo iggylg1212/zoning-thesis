@@ -197,5 +197,5 @@ uas = gpd.read_file('s3://thesis1212/gis/gis/us_urb_area_1990/reprojection_urb_a
 uas = uas.overlay(undev, how='difference')
 print('Writing File')
 uas.to_file('temporary.gpkg', driver='GPKG')
-S3FS.put(f'{S3_PATH}gis/gis/undev_concat/undev_concat.gpkg')
+S3FS.put('temporary.gpkg', f'{S3_PATH}gis/gis/undev_concat/undev_concat.gpkg')
 os.remove('temporary.gpkg')
