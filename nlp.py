@@ -1,4 +1,3 @@
-from typing import final
 from global_var import *
 import sqlite3
 from sqlite3 import Error
@@ -127,15 +126,13 @@ def create_row(conn, row):
 
 def loop(filename):
     ## Attributes
-    block_title = re.findall('[A-Z][^A-Z]*', filename.split('/')[-1])
+    block_title = re.findall('[A-Z][^A-Z]*', filename.replace('Compilation-','').split('/')[-1])
     date = re.sub("[^0-9]", "", block_title[-1])
     year = date[:4]
     month = date[4:6]
     day = date[6:]
     state = ''.join(block_title[-10:-8])
     muni = ' '.join(block_title[:-10])
-    if year != '2010':
-      return
 
     ## Text Data
     df = pd.read_excel(f's3://{filename}')
@@ -182,6 +179,6 @@ def loop(filename):
       create_row(conn, row)
 
 if __name__ == "__main__":
-  pool= Pool(processes=8)
+  pool= Pool(processes=4)
   for _ in tqdm.tqdm(pool.imap_unordered(loop, tasks), total=len(tasks)):
     pass

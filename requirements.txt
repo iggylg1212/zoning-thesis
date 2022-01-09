@@ -13,3 +13,4 @@ s3fs
 rtree
 openpyxl
 sentence_transformers
+multiprocessing
