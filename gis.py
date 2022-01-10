@@ -9,6 +9,7 @@ import rtree
 from scipy.sparse.csgraph import connected_components
 from sqlitedict import SqliteDict
 import math
+from tqdm.auto import tqdm
 import rasterio
 import rasterio.plot
 from rasterio import features
@@ -178,7 +179,9 @@ import os.path as path
 # public_lands.to_file('1data/gis/PAD/PAD_Concat/PAD_Concat.shp')
 
 # Concatentate
-public_lands = gpd.read_file('s3://thesis1212/gis/gis/PAD/PAD_Concat/PAD_Concat.shp', crs='EPSG:4326')[['geometry']]
+tqdm.pandas()
+
+public_lands = gpd.read_file(f'{S3_PATH}gis/gis/PAD/PAD_Concat/PAD_Concat.shp', crs='EPSG:4326')[['geometry']]
 print('Public Lands')
 S3FS.get(f'{S3_PATH}gis/gis/undev_land_cover/undev_land_cover.gpkg', 'temporary.gpkg')
 water_wet = gpd.read_file('temporary.gpkg', crs='EPSG:4326')[['geometry']]
