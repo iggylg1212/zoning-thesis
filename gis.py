@@ -1,20 +1,25 @@
 from global_var import *
+import sqlite3
+from sqlite3 import Error
 from geopandas.io.file import read_file
 import pandas as pd  # provides interface for interacting with tabular data
 import geopandas as gpd  # combines the capabilities of pandas and shapely for geospatial operations
-from shapely.geometry import Point, Polygon, MultiPolygon  # for manipulating text data into geospatial shapes
+from shapely.geometry import Point, Polygon, MultiPolygon, mapping  # for manipulating text data into geospatial shapes
 from shapely import wkt  # stands for "well known text," allows for interchange across GIS programs
 import pickle
 import rtree
 from scipy.sparse.csgraph import connected_components
 from sqlitedict import SqliteDict
 import math
-from tqdm.auto import tqdm
+from tqdm import tqdm
 import rasterio
 import rasterio.plot
+from multiprocessing.pool import ThreadPool as Pool
 from rasterio import features
 import numpy as np
 import os.path as path
+
+database = 'overlay.db'
 
 # states = [ 'AK', 'AL', 'AR', 'AZ', 'CA', 'CO', 'CT', 'DC', 'DE', 'FL', 'GA',
 #            'HI', 'IA', 'ID', 'IL', 'IN', 'KS', 'KY', 'LA', 'MA', 'MD', 'ME',
@@ -179,9 +184,12 @@ import os.path as path
 # public_lands.to_file('1data/gis/PAD/PAD_Concat/PAD_Concat.shp')
 
 # Concatentate
-tqdm.pandas()
-
-public_lands = gpd.read_file(f'{S3_PATH}gis/gis/PAD/PAD_Concat/PAD_Concat.shp', crs='EPSG:4326')[['geometry']]
+files = ['.dbf','.prj','.shp','.shx','.cpg']
+for file in files:
+    S3FS.get(f'{S3_PATH}gis/gis/PAD/PAD_Concat/PAD_Concat{file}', f'temporary{file}')
+public_lands = gpd.read_file('temporary.shp', crs='EPSG:4326')[['geometry']]
+for file in files:
+    os.remove(f'temporary{file}')
 print('Public Lands')
 S3FS.get(f'{S3_PATH}gis/gis/undev_land_cover/undev_land_cover.gpkg', 'temporary.gpkg')
 water_wet = gpd.read_file('temporary.gpkg', crs='EPSG:4326')[['geometry']]
@@ -195,10 +203,50 @@ print('Elevation')
 undev = water_wet.append(elev, ignore_index=True).append(public_lands, ignore_index=True)
 
 # Find spatial intersection of UAs and undevelopable areas
-uas = gpd.read_file('s3://thesis1212/gis/gis/us_urb_area_1990/reprojection_urb_area_1990.shp', crs='EPSG:4326')
+for file in files:
+    S3FS.get(f'{S3_PATH}gis/gis/us_urb_area_1990/reprojection_urb_area_1990{file}', f'temporary{file}')
+uas = gpd.read_file('temporary.shp', crs='EPSG:4326')
+for file in files:
+    os.remove(f'temporary{file}')
 
-uas = uas.overlay(undev, how='difference')
-print('Writing File')
-uas.to_file('temporary.gpkg', driver='GPKG')
-S3FS.put('temporary.gpkg', f'{S3_PATH}gis/gis/undev_concat/undev_concat.gpkg')
-os.remove('temporary.gpkg')
+def create_connection(db_file):
+    conn = None
+    try:
+        conn = sqlite3.connect(db_file)
+    except Error as e:
+        print(e)
+
+    return conn
+
+def create_row(conn, row):
+    cur = conn.cursor()
+    cur.execute(''' CREATE TABLE IF NOT EXISTS overlay (
+                      uacode TEXT NOT NULL,
+                      geometry TEXT NOT NULL 
+                    ); ''')
+    conn.commit()
+    cur.execute("INSERT INTO overlay (uacode, geometry) values (?,?);", row)
+    conn.commit()
+
+def worker(index):
+    city = uas.iloc[index]
+    city = {'UACODE':[city['UACODE']],'geometry':[city['geometry']]}
+    city = gpd.GeoDataFrame(city, crs='EPSG:4326')
+    city = city.overlay(city, how='union')
+    conn = create_connection(database)
+    with conn:
+        for row in city.index.to_list():
+            subset = city.iloc[row]
+            code = subset['UACODE_1']
+            geoms = str(mapping(subset['geometry']))
+            add = [code, geoms]
+            create_row(conn, add)
+
+pool = Pool()
+for index in tqdm(uas.index.to_list()):
+    pool.apply_async(worker, (index,))
+pool.close()
+pool.join()
+
+# S3FS.put('temporary.gpkg', f'{S3_PATH}gis/gis/undev_concat/undev_concat.gpkg')
+# os.remove('temporary.gpkg')

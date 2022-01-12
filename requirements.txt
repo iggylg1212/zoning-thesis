@@ -6,7 +6,6 @@ shapely
 scipy
 sqlitedict
 rasterio
-sqlite3
 pyshp
 fsspec
 s3fs
