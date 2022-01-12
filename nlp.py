@@ -15,10 +15,39 @@ import random
 from sentence_transformers import SentenceTransformer, losses, InputExample, util, evaluation
 from torch.utils.data import DataLoader
 
+def create_connection(db_file):
+    conn = None
+    try:
+        conn = sqlite3.connect(db_file)
+    except Error as e:
+        print(e)
+
+    return conn
+
+def create_row(conn, row):
+    cur = conn.cursor()
+    cur.execute(''' CREATE TABLE IF NOT EXISTS zoning (
+                      place TEXT NOT NULL,
+                      state TEXT NOT NULL,
+                      year INTEGER NOT NULL, 
+                      month INTEGER NOT NULL, 
+                      day INTEGER NOT NULL, 
+                      zone_text TEXT NOT NULL 
+                    ); ''')
+    conn.commit()
+    cur.execute("INSERT INTO zoning (place, state, year, month, day, zone_text) values (?,?,?,?,?,?);", row)
+    conn.commit()
+
+database = 'zoning_corpus.db'
+
+conn = create_connection(database)
+with conn:
+  cur = conn.cursor()
+  done_list = set(cur.execute('SELECT place, state, year, month, day FROM zoning').fetchall())
+
 zoning_phrases = ['development', 'development code', 'zoning', 'architectural', 'infill', 'density', 'housing', 'land', 'growth areas', 'building', 'preservation', 'historic', 'land use', 'neighborhood', 'subdivision', 'planning', 'property maintenace']
 directory = S3FS.ls(f'{S3_PATH}nlp/csv/municode')
-tasks = directory #random.sample(directory, k=3)
-database = 'zoning_corpus.db'
+tasks = directory[:(.5*len(directory))] #random.sample(directory, k=3)
 
 model_name = 'paraphrase-MiniLM-L3-v2'
 model_save_path = f'continue_training-{model_name}'
@@ -66,9 +95,12 @@ def cleaner(raw_text):
   return cleantext
 
 def text_creator(df):
+  try:
     df['raw_text'] = df.apply(lambda x: f'{x["Title"]} {x["Subtitle"]} {x["Content"]} ', axis=1)
     text = df['raw_text'].str.cat(sep=' ')
-    return text
+  except:
+    text = ''
+  return text
 
 def zoning_creator(df, indices):
     zoning = pd.DataFrame(columns=['Title','Subtitle','Content'])
@@ -101,38 +133,19 @@ def zoning_creator(df, indices):
       
     return zoning, zoning_idx
 
-def create_connection(db_file):
-    conn = None
-    try:
-        conn = sqlite3.connect(db_file)
-    except Error as e:
-        print(e)
-
-    return conn
-
-def create_row(conn, row):
-    cur = conn.cursor()
-    cur.execute(''' CREATE TABLE IF NOT EXISTS zoning (
-                      place TEXT NOT NULL,
-                      state TEXT NOT NULL,
-                      year INTEGER NOT NULL, 
-                      month INTEGER NOT NULL, 
-                      day INTEGER NOT NULL, 
-                      zone_text TEXT NOT NULL 
-                    ); ''')
-    conn.commit()
-    cur.execute("INSERT INTO zoning (place, state, year, month, day, zone_text) values (?,?,?,?,?,?);", row)
-    conn.commit()
-
 def loop(filename):
     ## Attributes
     block_title = re.findall('[A-Z][^A-Z]*', filename.replace('Compilation-','').split('/')[-1])
     date = re.sub("[^0-9]", "", block_title[-1])
-    year = date[:4]
-    month = date[4:6]
-    day = date[6:]
+    year = int(date[:4])
+    month = int(date[4:6])
+    day = int(date[6:])
     state = ''.join(block_title[-10:-8])
     muni = ' '.join(block_title[:-10])
+    
+    tup = (muni, state, year, month, day)
+    if tup in done_list:
+      return
 
     ## Text Data
     df = pd.read_excel(f's3://{filename}')
