@@ -47,7 +47,7 @@ with conn:
 
 zoning_phrases = ['development', 'development code', 'zoning', 'architectural', 'infill', 'density', 'housing', 'land', 'growth areas', 'building', 'preservation', 'historic', 'land use', 'neighborhood', 'subdivision', 'planning', 'property maintenace']
 directory = S3FS.ls(f'{S3_PATH}nlp/csv/municode')
-tasks = directory[:(.5*len(directory))] #random.sample(directory, k=3)
+tasks = directory[:int(.5*len(directory))] #random.sample(directory, k=3)
 
 model_name = 'paraphrase-MiniLM-L3-v2'
 model_save_path = f'continue_training-{model_name}'
