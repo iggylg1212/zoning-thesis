@@ -195,3 +195,5 @@ if __name__ == "__main__":
   pool= Pool()
   for _ in tqdm.tqdm(pool.imap_unordered(loop, tasks), total=len(tasks)):
     pass
+  S3FS.put('zoning_corpus.db', f'{S3_PATH}nlp/database/zoning_corpus.db')
+  os.remove('zoning_corpus.db')
