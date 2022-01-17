@@ -20,6 +20,8 @@ import numpy as np
 import os.path as path
 
 database = 'overlay.db'
+files1 = ['.dbf','.prj','.shp','.shx','.cpg']
+files2 = ['.dbf', '.cpg', '.sbn', '.sbx', '.shp', '.shp.xml', '.shx', '.prj']
 
 # states = [ 'AK', 'AL', 'AR', 'AZ', 'CA', 'CO', 'CT', 'DC', 'DE', 'FL', 'GA',
 #            'HI', 'IA', 'ID', 'IL', 'IN', 'KS', 'KY', 'LA', 'MA', 'MD', 'ME',
@@ -159,12 +161,26 @@ database = 'overlay.db'
 # def pad_processor(region, set):
 #     if set == 'Marine':
 #         try:
-#             pad = gpd.read_file(f'{ROOT_DIR}1data/gis/PAD/PADUS2_1_Region{region}_Shapefile/PADUS2_1{set}.shp')
+#             for file in files2:
+#                 if file == '.prj':
+#                     S3FS.get(f'{S3_PATH}gis/gis/PAD/PADUS2_1_Region{region}_Shapefile/PADUS2_1Marine_Region{region}{file}', f'temporary{file}')
+#                 else:
+#                     S3FS.get(f'{S3_PATH}gis/gis/PAD/PADUS2_1_Region{region}_Shapefile/PADUS2_1Marine{file}', f'temporary{file}')
+#             pad = gpd.read_file(f'temporary.shp')
+#             for file in files2:
+#                 os.remove(f'temporary{file}')
 #             pad = pad.set_crs('PROJCS["USA_Contiguous_Albers_Equal_Area_Conic_USGS_version",GEOGCS["GCS_North_American_1983",DATUM["North_American_Datum_1983",SPHEROID["GRS_1980",6378137.0,298.257222101]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433],AUTHORITY["EPSG","4269"]],PROJECTION["Albers_Conic_Equal_Area"],PARAMETER["False_Easting",0.0],PARAMETER["False_Northing",0.0],PARAMETER["longitude_of_center",-96.0],PARAMETER["Standard_Parallel_1",29.5],PARAMETER["Standard_Parallel_2",45.5],PARAMETER["latitude_of_center",23.0],UNIT["Meter",1.0]]')
 #         except:
 #             return None
 #     else:
-#         pad = gpd.read_file(f'{ROOT_DIR}1data/gis/PAD/PADUS2_1_Region{region}_Shapefile/PADUS2_1{set}_Region{region}.shp')
+#         for file in files2:
+#             if file == '.prj':
+#                 S3FS.get(f'{S3_PATH}gis/gis/PAD/PADUS2_1_Region{region}_Shapefile/PADUS2_1{set}_Region{region}{file}', f'temporary{file}')
+#             else:
+#                 S3FS.get(f'{S3_PATH}gis/gis/PAD/PADUS2_1_Region{region}_Shapefile/PADUS2_1{set}_Region{region}{file}', f'temporary{file}')
+#         pad = gpd.read_file(f'temporary.shp')
+#         for file in files2:
+#             os.remove(f'temporary{file}')
     
 #     none_pad = pad[ ~(pad['Date_Est'].apply(type) == str) ]
 #     old_pad = pad[ pad[ 'Date_Est'].apply(type) == str ]
@@ -177,37 +193,41 @@ database = 'overlay.db'
 
 # public_lands = pad_processor(1,'Marine')
 # for set in sets:
-#     for region in regions:pip
+#     for region in regions:
 #         public_lands = public_lands.append(pad_processor(region, set))
 
-# public_land = public_lands.to_crs('EPSG:4326')
-# public_lands.to_file('1data/gis/PAD/PAD_Concat/PAD_Concat.shp')
+# public_lands = public_lands.to_crs('EPSG:4326')
+# public_lands.to_file('PAD_Concat.gpkg', driver='GPKG')
+# S3FS.put('PAD_Concat.gpkg', f'{S3_PATH}gis/gis/PAD/PAD_Concat/PAD_Concat.gpkg')
+# os.remove('PAD_Concat.gpkg')
 
 # Concatentate
-files = ['.dbf','.prj','.shp','.shx','.cpg']
-for file in files:
-    S3FS.get(f'{S3_PATH}gis/gis/PAD/PAD_Concat/PAD_Concat{file}', f'temporary{file}')
-public_lands = gpd.read_file('temporary.shp', crs='EPSG:4326')[['geometry']]
-for file in files:
-    os.remove(f'temporary{file}')
+S3FS.get(f'{S3_PATH}gis/gis/PAD/PAD_Concat/PAD_Concat.gpkg', f'temporary.gpkg')
+public_lands = gpd.read_file('temporary.gpkg', crs='EPSG:4326')[['geometry']]
+public_lands['source'] = 'public_lands'
+os.remove(f'temporary.gpkg')
 print('Public Lands')
 S3FS.get(f'{S3_PATH}gis/gis/undev_land_cover/undev_land_cover.gpkg', 'temporary.gpkg')
 water_wet = gpd.read_file('temporary.gpkg', crs='EPSG:4326')[['geometry']]
+water_wet['source'] = 'water and wetlands'
 os.remove('temporary.gpkg')
 print('Water')
 S3FS.get(f'{S3_PATH}gis/gis/undev_slope/undev_slope.gpkg', 'temporary.gpkg')
 elev = gpd.read_file('temporary.gpkg', crs='EPSG:4326')[['geometry']]
+elev['source'] = 'elevation'
 os.remove('temporary.gpkg')
 print('Elevation')
 
 undev = water_wet.append(elev, ignore_index=True).append(public_lands, ignore_index=True)
+print(undev)
 
 # Find spatial intersection of UAs and undevelopable areas
-for file in files:
+for file in files1:
     S3FS.get(f'{S3_PATH}gis/gis/us_urb_area_1990/reprojection_urb_area_1990{file}', f'temporary{file}')
 uas = gpd.read_file('temporary.shp', crs='EPSG:4326')
-for file in files:
+for file in files1:
     os.remove(f'temporary{file}')
+tasks = uas.index.to_list()
 
 def create_connection(db_file):
     conn = None
@@ -221,32 +241,29 @@ def create_connection(db_file):
 def create_row(conn, row):
     cur = conn.cursor()
     cur.execute(''' CREATE TABLE IF NOT EXISTS overlay (
-                      uacode TEXT NOT NULL,
+                      source TEXT NOT NULL,
                       geometry TEXT NOT NULL 
                     ); ''')
     conn.commit()
-    cur.execute("INSERT INTO overlay (uacode, geometry) values (?,?);", row)
+    cur.execute("INSERT INTO overlay (source, geometry) values (?,?);", row)
     conn.commit()
 
 def worker(index):
     city = uas.iloc[index]
-    city = {'UACODE':[city['UACODE']],'geometry':[city['geometry']]}
-    city = gpd.GeoDataFrame(city, crs='EPSG:4326')
-    city = city.overlay(city, how='union')
-    conn = create_connection(database)
-    with conn:
-        for row in city.index.to_list():
-            subset = city.iloc[row]
-            code = subset['UACODE_1']
-            geoms = str(mapping(subset['geometry']))
-            add = [code, geoms]
+    geometry = city['geometry']
+    undev['bool'] = undev.intersects(geometry)
+    city = uas[uas['bool']==True]
+    for row in city.index.to_list():
+        subset = city.iloc[row]
+        add = [subset['source'],subset['geometry']]
+        conn = create_connection(database)
+        with conn:
             create_row(conn, add)
 
-pool = Pool()
-for index in tqdm(uas.index.to_list()):
-    pool.apply_async(worker, (index,))
-pool.close()
-pool.join()
+if __name__ == "__main__":
+    pool= Pool()
+    for _ in tqdm(pool.imap_unordered(worker, tasks), total=len(tasks)):
+        pass
 
-# S3FS.put('temporary.gpkg', f'{S3_PATH}gis/gis/undev_concat/undev_concat.gpkg')
-# os.remove('temporary.gpkg')
+    S3FS.put('overlay.db', f'{S3_PATH}gis/database/overlay.db')
+    os.remove('overlay.db')
