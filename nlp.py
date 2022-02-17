@@ -719,7 +719,7 @@ with conn:
     beta.append(result[6])
     tau.append(result[7])
 df = pd.DataFrame({'year':year,'month':month,'day':day,'gisjoin':gisjoin,'wrluri':wrluri,'alpha':alpha,'beta':beta,'tau':tau})
-df.to_csv(f'{S3_PATH}nlp/urban1990sample.csv')
+df.to_csv(f'{S3_PATH}nlp/csv/urban1990sample.csv')
 print('SUMMARY STATS')
 print(df.describe())
 
