@@ -36,4 +36,5 @@ psid = psid.rename(columns=labels)
 child = psid[(psid['AGE OF INDIVIDUAL']<=5) & (psid['YEAR INDIVIDUAL BORN']>=1984)] # Born between 1984-1990
 child_ids = child['CHILD_ID']
 child_ids = pd.merge(child_ids, fims, how='left', on='CHILD_ID')
-print(child_ids[ child_ids['A_FATHER_ID'].notna() | child_ids['A_MOTHER_ID'].notna() ])
+print(child_ids)
+# print(child_ids[ child_ids['A_FATHER_ID'].notna() | child_ids['A_MOTHER_ID'].notna() ])

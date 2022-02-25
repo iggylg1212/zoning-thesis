@@ -151,7 +151,7 @@ for year in list(range(df['year'].min(),df['year'].max()+1)):
     rounded = round(year_df,3)
     print(f'{year}: {rounded}%')
 
-######### ADD COVS for 2018
+######## ADD COVS for 2018
 def import_shpfile(path):
     shp_files = ['.dbf','.prj','.sbn','.sbx','.shp','.shp.xml','.shx']
     for file in shp_files:
@@ -198,6 +198,7 @@ for gisjoin in gisjoins:
     meaned['gisjoin'] = muni['gisjoin'].iloc[0]
     new = pd.concat([new, meaned])
 sample = new[['gisjoin','wrluri','alpha','beta','tau']].rename(columns={'gisjoin':'GISJOIN'})
+print(sample.describe())
 
 cov_list = ['GISJOIN','NAME','STATE','source','log_total_pop','log_density','log_median_income','female_perc','over_65_perc','hispan_perc','white_perc','black_perc','asian_perc','families_perc','some_college_perc','bachelors_perc','masters_perc','poverty_perc','unemployed_perc','employed_perc','homeowner_perc']
 def proc_data(df):
@@ -257,10 +258,10 @@ lab var families_perc "Family HH (\%)"
 lab var some_college_perc "Some College (\%)"
 lab var bachelors_perc "Bachelors Deg. (\%)"
 lab var masters_perc "Masters Deg. (\%)"
-lab var poverty_perc "Pop. in Poverty (\%)"
+lab var poverty_perc "Poverty (\%)"
 lab var unemployed_perc "Unemployed (\% W.A.)"
 lab var employed_perc "Employed (\% W.A.)"
-lab var homeowner_perc "Homeowners (\% HH)"
+lab var homeowner_perc "Homeowners (\% Houses)"
 
 local list " log_total_pop log_density log_median_income place female_perc over_65_perc hispan_perc white_perc black_perc asian_perc families_perc some_college_perc bachelors_perc masters_perc poverty_perc unemployed_perc employed_perc homeowner_perc "
 
