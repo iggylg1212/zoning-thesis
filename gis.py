@@ -1,6 +1,8 @@
+from concurrent.futures import process
+from venv import create
 from global_var import *
-import sqlite3
-from sqlite3 import Error
+import pymysql
+from config import *
 from geopandas.io.file import read_file
 import pandas as pd  # provides interface for interacting with tabular data
 import geopandas as gpd  # combines the capabilities of pandas and shapely for geospatial operations
@@ -8,6 +10,7 @@ from shapely.geometry import Point, Polygon, MultiPolygon, mapping  # for manipu
 from shapely import wkt  # stands for "well known text," allows for interchange across GIS programs
 import pickle
 import rtree
+import numpy as np
 from scipy.sparse.csgraph import connected_components
 from sqlitedict import SqliteDict
 import math
@@ -19,7 +22,18 @@ from rasterio import features
 import numpy as np
 import os.path as path
 
-database = 'overlay.db'
+def create_connection():
+    conn = None
+    errors = 0
+    while conn is None and errors<10: 
+      try:
+          conn = pymysql.connect(host=HOST, user=USER, password=PASSWORD, database=DATABASE)
+      except:
+          errors += 1
+    return conn
+
+files1 = ['.dbf','.prj','.shp','.shx','.cpg']
+files2 = ['.dbf', '.cpg', '.sbn', '.sbx', '.shp', '.shp.xml', '.shx', '.prj']
 
 # states = [ 'AK', 'AL', 'AR', 'AZ', 'CA', 'CO', 'CT', 'DC', 'DE', 'FL', 'GA',
 #            'HI', 'IA', 'ID', 'IL', 'IN', 'KS', 'KY', 'LA', 'MA', 'MD', 'ME',
@@ -159,12 +173,26 @@ database = 'overlay.db'
 # def pad_processor(region, set):
 #     if set == 'Marine':
 #         try:
-#             pad = gpd.read_file(f'{ROOT_DIR}1data/gis/PAD/PADUS2_1_Region{region}_Shapefile/PADUS2_1{set}.shp')
+#             for file in files2:
+#                 if file == '.prj':
+#                     S3FS.get(f'{S3_PATH}gis/gis/PAD/PADUS2_1_Region{region}_Shapefile/PADUS2_1Marine_Region{region}{file}', f'temporary{file}')
+#                 else:
+#                     S3FS.get(f'{S3_PATH}gis/gis/PAD/PADUS2_1_Region{region}_Shapefile/PADUS2_1Marine{file}', f'temporary{file}')
+#             pad = gpd.read_file(f'temporary.shp')
+#             for file in files2:
+#                 os.remove(f'temporary{file}')
 #             pad = pad.set_crs('PROJCS["USA_Contiguous_Albers_Equal_Area_Conic_USGS_version",GEOGCS["GCS_North_American_1983",DATUM["North_American_Datum_1983",SPHEROID["GRS_1980",6378137.0,298.257222101]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433],AUTHORITY["EPSG","4269"]],PROJECTION["Albers_Conic_Equal_Area"],PARAMETER["False_Easting",0.0],PARAMETER["False_Northing",0.0],PARAMETER["longitude_of_center",-96.0],PARAMETER["Standard_Parallel_1",29.5],PARAMETER["Standard_Parallel_2",45.5],PARAMETER["latitude_of_center",23.0],UNIT["Meter",1.0]]')
 #         except:
 #             return None
 #     else:
-#         pad = gpd.read_file(f'{ROOT_DIR}1data/gis/PAD/PADUS2_1_Region{region}_Shapefile/PADUS2_1{set}_Region{region}.shp')
+#         for file in files2:
+#             if file == '.prj':
+#                 S3FS.get(f'{S3_PATH}gis/gis/PAD/PADUS2_1_Region{region}_Shapefile/PADUS2_1{set}_Region{region}{file}', f'temporary{file}')
+#             else:
+#                 S3FS.get(f'{S3_PATH}gis/gis/PAD/PADUS2_1_Region{region}_Shapefile/PADUS2_1{set}_Region{region}{file}', f'temporary{file}')
+#         pad = gpd.read_file(f'temporary.shp')
+#         for file in files2:
+#             os.remove(f'temporary{file}')
     
 #     none_pad = pad[ ~(pad['Date_Est'].apply(type) == str) ]
 #     old_pad = pad[ pad[ 'Date_Est'].apply(type) == str ]
@@ -177,76 +205,184 @@ database = 'overlay.db'
 
 # public_lands = pad_processor(1,'Marine')
 # for set in sets:
-#     for region in regions:pip
+#     for region in regions:
 #         public_lands = public_lands.append(pad_processor(region, set))
 
-# public_land = public_lands.to_crs('EPSG:4326')
-# public_lands.to_file('1data/gis/PAD/PAD_Concat/PAD_Concat.shp')
+# public_lands = public_lands.to_crs('EPSG:4326')
+# public_lands.to_file('PAD_Concat.gpkg', driver='GPKG')
+# S3FS.put('PAD_Concat.gpkg', f'{S3_PATH}gis/gis/PAD/PAD_Concat/PAD_Concat.gpkg')
+# os.remove('PAD_Concat.gpkg')
 
-# Concatentate
-files = ['.dbf','.prj','.shp','.shx','.cpg']
-for file in files:
-    S3FS.get(f'{S3_PATH}gis/gis/PAD/PAD_Concat/PAD_Concat{file}', f'temporary{file}')
-public_lands = gpd.read_file('temporary.shp', crs='EPSG:4326')[['geometry']]
-for file in files:
-    os.remove(f'temporary{file}')
-print('Public Lands')
-S3FS.get(f'{S3_PATH}gis/gis/undev_land_cover/undev_land_cover.gpkg', 'temporary.gpkg')
-water_wet = gpd.read_file('temporary.gpkg', crs='EPSG:4326')[['geometry']]
-os.remove('temporary.gpkg')
-print('Water')
-S3FS.get(f'{S3_PATH}gis/gis/undev_slope/undev_slope.gpkg', 'temporary.gpkg')
-elev = gpd.read_file('temporary.gpkg', crs='EPSG:4326')[['geometry']]
-os.remove('temporary.gpkg')
-print('Elevation')
+# # Concatentate
+# S3FS.get(f'{S3_PATH}gis/gis/PAD/PAD_Concat/PAD_Concat.gpkg', f'public.gpkg')
+# public_lands = gpd.read_file('public.gpkg', crs='EPSG:4326')[['geometry']]
+# public_lands['source'] = 'public lands'
+# os.remove('public.gpkg')
+# print('Public Lands')
+# S3FS.get(f'{S3_PATH}gis/gis/undev_land_cover/undev_land_cover.gpkg', 'water.gpkg')
+# water_wet = gpd.read_file('water.gpkg', crs='EPSG:4326')[['geometry']]
+# water_wet['source'] = 'water and wetlands'
+# os.remove('water.gpkg')
+# print('Water')
+# S3FS.get(f'{S3_PATH}gis/gis/undev_slope/undev_slope.gpkg', 'elev.gpkg')
+# elev = gpd.read_file('elev.gpkg', crs='EPSG:4326')[['geometry']]
+# elev['source'] = 'elevation'
+# os.remove('elev.gpkg')
+# print('Elevation')
 
-undev = water_wet.append(elev, ignore_index=True).append(public_lands, ignore_index=True)
+# undev = water_wet.append(elev, ignore_index=True).append(public_lands, ignore_index=True)
 
-# Find spatial intersection of UAs and undevelopable areas
-for file in files:
+# # Undevelopable in urban areas
+# for file in files1:
+#     S3FS.get(f'{S3_PATH}gis/gis/us_urb_area_1990/reprojection_urb_area_1990{file}', f'temporary{file}')
+# uas = gpd.read_file('temporary.shp', crs='EPSG:4326')
+# for file in files1:
+#     os.remove(f'temporary{file}')
+
+# def worker(index):
+#     cities = uas
+#     row = undev.iloc[index]
+#     try:
+#         cities['bool'] = cities.intersects(row['geometry'])
+#         set = cities[cities['bool']==True].reset_index(drop=True)
+#         if len(set)==0:
+#             return
+#         else:
+#             for idx in list(range(len(set))):
+#                 subset = set.iloc[idx]
+#                 conn = create_connection()
+#                 conn.__enter__()
+#                 cur = conn.cursor()
+#                 # cur.execute(''' CREATE TABLE IF NOT EXISTS undev (
+#                 #                     source TEXT NOT NULL,
+#                 #                     city TEXT NOT NULL,
+#                 #                     geometry LONGTEXT NOT NULL 
+#                 #                 ); ''')
+#                 # conn.commit()
+#                 cur.execute(f"INSERT INTO undev (source, city, geometry) values ('{str(row['source'])}','{str(subset['UACODE'])}','{str(row['geometry'])}')")
+#                 conn.commit()
+#                 conn.__exit__()
+#     except:
+#         print(f'broken geom:{index}')
+
+# tasks = list(range(len(undev)))
+
+# if __name__ == "__main__":
+#     pool= Pool(processes=1)
+#     for _ in tqdm(pool.imap_unordered(worker, tasks), total=len(tasks)):
+#         pass
+
+# conn = create_connection()
+# with conn:
+#     cur = conn.cursor()
+#     cur.execute('CREATE TABLE undev_copy SELECT DISTINCT source, city, geometry FROM undev;')
+#     conn.commit()
+#     cur.execute('DROP TABLE undev')
+#     conn.commit()
+#     cur.execute('ALTER TABLE undev_copy RENAME TO undev;')
+#     conn.commit()
+
+# conn = create_connection()
+# with conn:
+#     cur = conn.cursor()
+#     cur.execute('SELECT * FROM undev')
+#     results = cur.fetchall()
+#     source = []
+#     city = []
+#     geometry = []
+#     for result in results:
+#         source.append(result[0])
+#         city.append(result[1])
+#         geometry.append(wkt.loads(result[2]))
+
+# gpkg = gpd.GeoDataFrame(pd.DataFrame({'source':source,'city':city,'geometry':geometry}), geometry ='geometry', crs='EPSG:4326')
+# gpkg.to_file('undev_city1990.gpkg')
+# S3FS.put('undev_city1990.gpkg',f'{S3_PATH}gis/gis/undev_city1990.gpkg')
+# os.remove('undev_city1990.gpkg')
+
+# Difference Urban Areas by undevelopable
+for file in files1:
     S3FS.get(f'{S3_PATH}gis/gis/us_urb_area_1990/reprojection_urb_area_1990{file}', f'temporary{file}')
 uas = gpd.read_file('temporary.shp', crs='EPSG:4326')
-for file in files:
+for file in files1:
     os.remove(f'temporary{file}')
 
-def create_connection(db_file):
-    conn = None
-    try:
-        conn = sqlite3.connect(db_file)
-    except Error as e:
-        print(e)
-
-    return conn
-
-def create_row(conn, row):
+conn = create_connection()
+with conn:
     cur = conn.cursor()
-    cur.execute(''' CREATE TABLE IF NOT EXISTS overlay (
-                      uacode TEXT NOT NULL,
-                      geometry TEXT NOT NULL 
-                    ); ''')
+    cur.execute('CREATE TABLE IF NOT EXISTS undev_city (uacode TEXT, name TEXT, gisjoin TEXT, geometry LONGTEXT);')
     conn.commit()
-    cur.execute("INSERT INTO overlay (uacode, geometry) values (?,?);", row)
+    cur.execute('SELECT uacode FROM undev_city')
+    results = cur.fetchall()
+    done_list = []
+    for result in results:
+        done_list.append(result[0])
+
+def clip_worker(row):
+    conn = create_connection()
+    conn.__enter__()
+    cur = conn.cursor()
+    code = uas.iloc[row]['UACODE']
+    if code in done_list:
+        return
+    cur.execute(f'SELECT geometry FROM undev where city={code}')
+    geom_groups = cur.fetchall()
+    conn.__exit__()
+    undev = gpd.GeoDataFrame(columns=['geometry'], crs='EPSG:4326')
+    for geom_group in geom_groups:
+        geom = wkt.loads(geom_group[0])
+        undev = undev.append({'geometry':geom}, ignore_index=True)
+    dev_city = uas[uas['UACODE']==code]
+    try:
+        dev_city = dev_city.overlay(undev, how='difference', keep_geom_type=True)
+    except:
+        for und in undev:
+            try:
+                dev_city = dev_city.overlay(und, how='difference', keep_geom_type=True)
+            except:
+                print('broken geom')
+    for row in list(range(len(dev_city))):
+        subset = dev_city.iloc[row]
+        conn = create_connection()
+        conn.__enter__()
+        cur = conn.cursor()
+        cur.execute(f"INSERT INTO undev_city (uacode, name, gisjoin, geometry) values ('{subset['UACODE']}','{subset['NAME']}','{subset['GISJOIN']}','{str(subset['geometry'])}')")
+        conn.commit()
+        conn.__exit__()
+
+tasks = list(range(len(uas)))
+tasks.reverse()
+if __name__ == "__main__":
+    pool= Pool()
+    for _ in tqdm(pool.imap_unordered(clip_worker, tasks), total=len(tasks)):
+        pass
+
+conn = create_connection()
+with conn:
+    cur = conn.cursor()
+    cur.execute('CREATE TABLE undev_city_copy SELECT DISTINCT uacode, name, gisjoin, geometry FROM undev_city;')
+    conn.commit()
+    cur.execute('DROP TABLE undev_city')
+    conn.commit()
+    cur.execute('ALTER TABLE undev_city_copy RENAME TO undev_city;')
     conn.commit()
 
-def worker(index):
-    city = uas.iloc[index]
-    city = {'UACODE':[city['UACODE']],'geometry':[city['geometry']]}
-    city = gpd.GeoDataFrame(city, crs='EPSG:4326')
-    city = city.overlay(city, how='union')
-    conn = create_connection(database)
-    with conn:
-        for row in city.index.to_list():
-            subset = city.iloc[row]
-            code = subset['UACODE_1']
-            geoms = str(mapping(subset['geometry']))
-            add = [code, geoms]
-            create_row(conn, add)
+conn = create_connection()
+with conn:
+    cur = conn.cursor()
+    cur.execute('SELECT * FROM undev_city')
+    results = cur.fetchall()
+    uacode = []
+    name = []
+    gisjoin = []
+    geometry = []
+    for result in results:
+        uacode.append(result[0])
+        name.append(result[1])
+        gisjoin.append(result[2])
+        geometry.append(wkt.loads(result[3]))
 
-pool = Pool()
-for index in tqdm(uas.index.to_list()):
-    pool.apply_async(worker, (index,))
-pool.close()
-pool.join()
-
-# S3FS.put('temporary.gpkg', f'{S3_PATH}gis/gis/undev_concat/undev_concat.gpkg')
-# os.remove('temporary.gpkg')
+gpkg = gpd.GeoDataFrame(pd.DataFrame({'uacode':uacode,'name':name,'gisjoin':gisjoin,'geometry':geometry}), geometry ='geometry', crs='EPSG:4326')
+gpkg.to_file('dev_city1990.gpkg')
+S3FS.put('dev_city1990.gpkg',f'{S3_PATH}gis/gis/dev_city1990.gpkg')
+os.remove('dev_city1990.gpkg')
