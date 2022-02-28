@@ -2,6 +2,7 @@ from concurrent.futures import process
 from venv import create
 from global_var import *
 import pymysql
+import os
 from config import *
 from geopandas.io.file import read_file
 import pandas as pd  # provides interface for interacting with tabular data
@@ -35,101 +36,6 @@ def create_connection():
 files1 = ['.dbf','.prj','.shp','.shx','.cpg']
 files2 = ['.dbf', '.cpg', '.sbn', '.sbx', '.shp', '.shp.xml', '.shx', '.prj']
 
-# states = [ 'AK', 'AL', 'AR', 'AZ', 'CA', 'CO', 'CT', 'DC', 'DE', 'FL', 'GA',
-#            'HI', 'IA', 'ID', 'IL', 'IN', 'KS', 'KY', 'LA', 'MA', 'MD', 'ME',
-#            'MI', 'MN', 'MO', 'MS', 'MT', 'NC', 'ND', 'NE', 'NH', 'NJ', 'NM',
-#            'NV', 'NY', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC', 'SD', 'TN', 'TX',
-#            'UT', 'VA', 'VT', 'WA', 'WI', 'WV', 'WY']
-
-# blocks = gpd.read_file(f'{ROOT_DIR}1data/gis/blocks_1990/AK_block_1990/AK_block_1990.shp')
-# for state in states[1:]:
-#     state_geo = gpd.read_file(f'{ROOT_DIR}1data/gis/blocks_1990/{state}_block_1990/{state}_block_1990.shp')
-#     blocks = blocks.append(state_geo, ignore_index=True)
-
-# pickle.dump(blocks, open(f"{ROOT_DIR}/1data/pickle/1990_blocks.p", "wb" ))
-# blocks = pickle.load(open("1data/pickle/1990_blocks.p",'rb'))
-
-# pop = pd.read_csv(f'{ROOT_DIR}1data/csv/1990_block_population/1990_block_population.csv')
-# blocks = blocks.merge(pop, how='inner', on='GISJOIN')
-
-# pickle.dump(blocks, open(f"{ROOT_DIR}/1data/pickle/1990_blocks.p", "wb" ))
-# blocks = pickle.load(open("1data/pickle/1990_blocks.p",'rb'))
-
-# commute = pd.read_csv(f'{ROOT_DIR}1data/csv/1990_tract_commute/1990_tract_commute.csv', low_memory=False)
-
-# def mean_commute(x, alpha):
-#     # alpha is a tuning parameter for logistic function through which `diff` is transformed. Recommended setting ~3
-#     ranges = [(0,5),(5,9),(10,14),(15,19),(20,24),(25,29),(30,34),(35,39),(40,44),(45,59),(60,89),(90,100)]
-#     pop = 0  
-#     for num in list(range(1,13)):
-#         if len(str(num)) == 1:
-#             num = f'0{num}'
-#         pop += x[f'E3W0{num}']
-    
-#     if pop == 0:
-#         return 0 
-
-#     expec = 0
-#     for i in list(range(1,13)):
-#         if len(str(i)) == 1:
-#             i = f'0{i}'
-#         pop_dup = pop + x[f'E3W0{i}']
-#         prob = x[f'E3W0{i}'] / pop
-#         min_share = 0 
-#         for min in list(range(1,int(i)+1)):
-#             if len(str(min)) == 1:
-#                 min = f'0{min}'
-#             min_share += x[f'E3W0{min}']/pop_dup
-#         max_share = 0 
-#         for max in list(range( int(i), 13)):
-#             if len(str(max)) == 1:
-#                 max = f'0{max}'
-#             max_share += x[f'E3W0{max}']/pop_dup
-#         diff = max_share - min_share
-#         diff = (2/(1+math.exp(-alpha*diff)))-1
-        
-#         value = (ranges[int(i)-1][1]+ranges[int(i)-1][0])/2 + diff*(ranges[int(i)-1][1]-ranges[int(i)-1][0])/2
-#         value = value**(-1)
-#         expec += value*prob
-
-#     return expec
-
-# def remove_suffix(input_string, suffix):
-#     if suffix and input_string.endswith(suffix):
-#         return input_string[:-len(suffix)]
-#     return input_string
-
-# commute['COMMUTE'] = commute.apply(lambda x: mean_commute(x,3), axis=1)
-# commute = commute[['GISJOIN','COMMUTE']].rename(columns={'GISJOIN':'GISJOINTRACT'})
-
-# blocks['GISJOINTRACT'] = blocks.apply(lambda x: remove_suffix(str(x['GISJOIN']), str(x['BLOCK'])), axis=1)
-# blocks = blocks.merge(commute, how='left', on='GISJOINTRACT')
-
-# pickle.dump(blocks, open(f"{ROOT_DIR}/1data/pickle/1990_blocks.p", "wb" ))
-# blocks = pickle.load(open("1data/pickle/1990_blocks.p",'rb'))
-
-# urban_blocks = blocks[blocks['URB_AREAA']!=9999].to_crs('EPSG:4326')
-# urban_blocks.to_file('1data/gis/us_urb_blocks_1990/us_urb_blocks_1990.shp')
-
-# def numpy_centroids(geom):
-#     centroid = geom.centroid
-#     array = np.array((centroid.xy[0][0], centroid.xy[1][0]))
-#     return array
-
-# urban_blocks['CENTROID'] = urban_blocks['geometry'].apply(lambda x: numpy_centroids(x))
-
-# uas = pd.DataFrame()
-# for ua in list(set( urban_blocks['URB_AREAA'])):
-#     urb = urban_blocks[ urban_blocks['URB_AREAA'] == ua ]
-    
-#     sum = urb['COMMUTE'].sum()
-#     center = ((urb['COMMUTE']/sum)*(urb['CENTROID'])).sum()
-
-#     uas = uas.append({'URB_AREAA':ua, 'geometry': Point(center[0] ,center[1]) }, ignore_index=True)
-
-# uas = gpd.GeoDataFrame(uas, crs=urban_blocks.crs).to_crs('EPSG:4326')
-# uas.to_file('1data/gis/us_urb_area_center_1990/1990_uas_center.shp')
-
 # ########## Undevelopable Land
 # # Water and Wetlands
 # land_use = {'Open Water':11, 'Perennial Ice/Snow':12, 'Developed, Open Space':21, 'Developed, Low Intensity':22, 
@@ -152,11 +58,12 @@ files2 = ['.dbf', '.cpg', '.sbn', '.sbx', '.shp', '.shp.xml', '.shx', '.prj']
 #     undev = undev.to_crs('EPSG:4326')
 #     print(len(undev))
 #     print('Writing File')
-#     undev.to_file('1data/gis/undev_land_cover/undev_land_cover.gpkg', driver='GPKG')
+#     undev.to_file(f'{S3_PATH}gis/gis/undev_land_cover/undev_land_cover.gpkg', driver='GPKG')
 
 # # Elevation
+# S3FS.get(f'{S3_PATH}gis/gis/National_Slope/National_Slope.img', 'National_Slope.img' )
 # with rasterio.Env():
-#     with rasterio.open(f'{ROOT_DIR}1data/gis/National_Slope/National_Slope.img') as src:
+#     with rasterio.open('National_Slope.img') as src:
 #         image = src.read(1)
 #         mask = image >=20 # Slope greater than 20 degrees
 #         fp = np.memmap('1data/pickle/numpy.memmap', mode='w+', shape=image.shape)
@@ -167,7 +74,9 @@ files2 = ['.dbf', '.cpg', '.sbn', '.sbx', '.shp', '.shp.xml', '.shx', '.prj']
 # undev  = gpd.GeoDataFrame.from_features( results.values(), crs=src.crs)[['geometry']]
 # undev = undev.to_crs('EPSG:4326')
 # print('Writing File')
-# undev.to_file('1data/gis/undev_slope/undev_slope.gpkg', driver='GPKG')
+# undev.to_file('{S3_PATH}gis/gis/undev_slope/undev_slope.gpkg', driver='GPKG')
+# S3FS.put('undev_slope.gpkg','{S3_PATH}gis/gis/undev_slope/undev_slope.gpkg')
+# os.remove('undev_slope.gpkg')
 
 # # Public Lands
 # def pad_processor(region, set):
@@ -300,89 +209,162 @@ files2 = ['.dbf', '.cpg', '.sbn', '.sbx', '.shp', '.shp.xml', '.shx', '.prj']
 # S3FS.put('undev_city1990.gpkg',f'{S3_PATH}gis/gis/undev_city1990.gpkg')
 # os.remove('undev_city1990.gpkg')
 
-# Difference Urban Areas by undevelopable
-for file in files1:
-    S3FS.get(f'{S3_PATH}gis/gis/us_urb_area_1990/reprojection_urb_area_1990{file}', f'temporary{file}')
-uas = gpd.read_file('temporary.shp', crs='EPSG:4326')
-for file in files1:
-    os.remove(f'temporary{file}')
+# # Difference Urban Areas by undevelopable
+# for file in files1:
+#     S3FS.get(f'{S3_PATH}gis/gis/us_urb_area_1990/reprojection_urb_area_1990{file}', f'temporary{file}')
+# uas = gpd.read_file('temporary.shp', crs='EPSG:4326')
+# for file in files1:
+#     os.remove(f'temporary{file}')
 
-conn = create_connection()
-with conn:
-    cur = conn.cursor()
-    cur.execute('CREATE TABLE IF NOT EXISTS undev_city (uacode TEXT, name TEXT, gisjoin TEXT, geometry LONGTEXT);')
-    conn.commit()
-    cur.execute('SELECT uacode FROM undev_city')
-    results = cur.fetchall()
-    done_list = []
-    for result in results:
-        done_list.append(result[0])
+# conn = create_connection()
+# with conn:
+#     cur = conn.cursor()
+#     cur.execute('CREATE TABLE IF NOT EXISTS undev_city (uacode TEXT, name TEXT, gisjoin TEXT, geometry LONGTEXT);')
+#     conn.commit()
+#     cur.execute('SELECT uacode FROM undev_city')
+#     results = cur.fetchall()
+#     done_list = []
+#     for result in results:
+#         done_list.append(result[0])
 
-def clip_worker(row):
-    conn = create_connection()
-    conn.__enter__()
-    cur = conn.cursor()
-    code = uas.iloc[row]['UACODE']
-    if code in done_list:
-        return
-    cur.execute(f'SELECT geometry FROM undev where city={code}')
-    geom_groups = cur.fetchall()
-    conn.__exit__()
-    undev = gpd.GeoDataFrame(columns=['geometry'], crs='EPSG:4326')
-    for geom_group in geom_groups:
-        geom = wkt.loads(geom_group[0])
-        undev = undev.append({'geometry':geom}, ignore_index=True)
-    dev_city = uas[uas['UACODE']==code]
-    try:
-        dev_city = dev_city.overlay(undev, how='difference', keep_geom_type=True)
-    except:
-        for und in undev:
-            try:
-                dev_city = dev_city.overlay(und, how='difference', keep_geom_type=True)
-            except:
-                print('broken geom')
-    for row in list(range(len(dev_city))):
-        subset = dev_city.iloc[row]
-        conn = create_connection()
-        conn.__enter__()
-        cur = conn.cursor()
-        cur.execute(f"INSERT INTO undev_city (uacode, name, gisjoin, geometry) values ('{subset['UACODE']}','{subset['NAME']}','{subset['GISJOIN']}','{str(subset['geometry'])}')")
-        conn.commit()
-        conn.__exit__()
+# def clip_worker(row):
+#     conn = create_connection()
+#     conn.__enter__()
+#     cur = conn.cursor()
+#     code = uas.iloc[row]['UACODE']
+#     if code in done_list:
+#         return
+#     cur.execute(f'SELECT geometry FROM undev where city={code}')
+#     geom_groups = cur.fetchall()
+#     conn.__exit__()
+#     undev = gpd.GeoDataFrame(columns=['geometry'], crs='EPSG:4326')
+#     for geom_group in geom_groups:
+#         geom = wkt.loads(geom_group[0])
+#         undev = undev.append({'geometry':geom}, ignore_index=True)
+#     dev_city = uas[uas['UACODE']==code]
+#     try:
+#         dev_city = dev_city.overlay(undev, how='difference', keep_geom_type=True)
+#     except:
+#         for und in undev:
+#             try:
+#                 dev_city = dev_city.overlay(und, how='difference', keep_geom_type=True)
+#             except:
+#                 print('broken geom')
+#     for row in list(range(len(dev_city))):
+#         subset = dev_city.iloc[row]
+#         conn = create_connection()
+#         conn.__enter__()
+#         cur = conn.cursor()
+#         cur.execute(f"INSERT INTO undev_city (uacode, name, gisjoin, geometry) values ('{subset['UACODE']}','{subset['NAME']}','{subset['GISJOIN']}','{str(subset['geometry'])}')")
+#         conn.commit()
+#         conn.__exit__()
 
-tasks = list(range(len(uas)))
-tasks.reverse()
-if __name__ == "__main__":
-    pool= Pool()
-    for _ in tqdm(pool.imap_unordered(clip_worker, tasks), total=len(tasks)):
-        pass
+# tasks = list(range(len(uas)))
+# tasks.reverse()
+# if __name__ == "__main__":
+#     pool= Pool()
+#     for _ in tqdm(pool.imap_unordered(clip_worker, tasks), total=len(tasks)):
+#         pass
 
-conn = create_connection()
-with conn:
-    cur = conn.cursor()
-    cur.execute('CREATE TABLE undev_city_copy SELECT DISTINCT uacode, name, gisjoin, geometry FROM undev_city;')
-    conn.commit()
-    cur.execute('DROP TABLE undev_city')
-    conn.commit()
-    cur.execute('ALTER TABLE undev_city_copy RENAME TO undev_city;')
-    conn.commit()
+# conn = create_connection()
+# with conn:
+#     cur = conn.cursor()
+#     cur.execute('CREATE TABLE undev_city_copy SELECT DISTINCT uacode, name, gisjoin, geometry FROM undev_city;')
+#     conn.commit()
+#     cur.execute('DROP TABLE undev_city')
+#     conn.commit()
+#     cur.execute('ALTER TABLE undev_city_copy RENAME TO undev_city;')
+#     conn.commit()
 
-conn = create_connection()
-with conn:
-    cur = conn.cursor()
-    cur.execute('SELECT * FROM undev_city')
-    results = cur.fetchall()
-    uacode = []
-    name = []
-    gisjoin = []
-    geometry = []
-    for result in results:
-        uacode.append(result[0])
-        name.append(result[1])
-        gisjoin.append(result[2])
-        geometry.append(wkt.loads(result[3]))
+# conn = create_connection()
+# with conn:
+#     cur = conn.cursor()
+#     cur.execute('SELECT * FROM undev_city')
+#     results = cur.fetchall()
+#     uacode = []
+#     name = []
+#     gisjoin = []
+#     geometry = []
+#     for result in results:
+#         uacode.append(result[0])
+#         name.append(result[1])
+#         gisjoin.append(result[2])
+#         geometry.append(wkt.loads(result[3]))
 
-gpkg = gpd.GeoDataFrame(pd.DataFrame({'uacode':uacode,'name':name,'gisjoin':gisjoin,'geometry':geometry}), geometry ='geometry', crs='EPSG:4326')
-gpkg.to_file('dev_city1990.gpkg')
-S3FS.put('dev_city1990.gpkg',f'{S3_PATH}gis/gis/dev_city1990.gpkg')
-os.remove('dev_city1990.gpkg')
+# gpkg = gpd.GeoDataFrame(pd.DataFrame({'uacode':uacode,'name':name,'gisjoin':gisjoin,'geometry':geometry}), geometry ='geometry', crs='EPSG:4326')
+# gpkg.to_file('dev_city1990.gpkg')
+# S3FS.put('dev_city1990.gpkg',f'{S3_PATH}gis/gis/dev_city1990.gpkg')
+# os.remove('dev_city1990.gpkg')
+
+# Obtain Urbanized Block Groups
+# S3FS.get(f'{S3_PATH}gis/gis/1990_blckgrp','1990_blkckgrp', recursive=True)
+# S3FS.get(f'{S3_PATH}gis/gis/1990_uas','1990_uas', recursive=True)
+
+blckgrp = gpd.read_file('1990_blkckgrp/US_blck_grp_1990.shp')[['GISJOIN','geometry']]
+blckgrp['UACODE'] = np.nan
+uas = gpd.read_file('1990_uas/US_urb_area_1990.shp')[['UACODE','geometry']]
+
+for index, row in tqdm(blckgrp.iterrows(), total = len(blckgrp)):
+    uas['bool'] = uas.intersects(row['geometry'])
+    subset = uas[uas['bool']==True]
+    if len(subset)!=0:
+        code = subset['UACODE'].iloc[0]
+        blckgrp.loc[index, 'UACODE'] = code
+
+urb_blckgrp = blckgrp[blckgrp['UACODE'].notna()].to_crs('EPSG:4326')
+urb_blckgrp.to_file('urb_blckgrp.gpkg')
+
+# Find distribution of commutes
+comm_blckgrp = pd.read_csv(f'{S3_PATH}gis/csv/1990_blckgrp_commutes/nhgis0034_ds123_1990_blck_grp.csv')
+comm_blckgrp = urb_blckgrp.merge(comm_blckgrp, how='left', on='GISJOIN')
+
+def comm_distribution(x, alpha):
+    # alpha is a tuning parameter for logistic function through which `diff` is transformed. Recommended setting ~3
+    ranges = [(0,5),(5,9),(10,14),(15,19),(20,24),(25,29),(30,34),(35,39),(40,44),(45,59),(60,89),(90,100)]
+    pop = 0  
+    for num in list(range(1,13)):
+        if len(str(num)) == 1:
+            num = f'0{num}'
+        pop += x[f'E3W0{num}']
+    
+    if pop == 0:
+        return [np.nan, np.nan, np.nan] 
+
+    values = []
+    probs = []
+    for i in list(range(1,13)):
+        if len(str(i)) == 1:
+            i = f'0{i}'
+        pop_dup = pop + x[f'E3W0{i}']
+        prob = x[f'E3W0{i}'] / pop
+        probs.append(prob)
+        min_share = 0 
+        for min in list(range(1,int(i)+1)):
+            if len(str(min)) == 1:
+                min = f'0{min}'
+            min_share += x[f'E3W0{min}']/pop_dup
+        max_share = 0 
+        for max in list(range( int(i), 13)):
+            if len(str(max)) == 1:
+                max = f'0{max}'
+            max_share += x[f'E3W0{max}']/pop_dup
+        diff = max_share - min_share
+        diff = (2/(1+math.exp(-alpha*diff)))-1
+        
+        value = (ranges[int(i)-1][1]+ranges[int(i)-1][0])/2 + diff*(ranges[int(i)-1][1]-ranges[int(i)-1][0])/2
+        values.append(value)
+    
+    results = [values, probs, pop]
+    return results 
+
+comm_blckgrp['Values'] = None
+comm_blckgrp['Probs'] = None
+comm_blckgrp['Pop'] = None
+for index, row in tqdm(comm_blckgrp.iterrows(), total=len(comm_blckgrp)):
+    results = comm_distribution(row, 3)
+    comm_blckgrp.loc[index, "Values"] = str(results[0]) 
+    comm_blckgrp.loc[index, "Probs"] = str(results[1]) 
+    comm_blckgrp.loc[index, "Pop"] = str(results[2]) 
+comm_blckgrp = comm_blckgrp[['GISJOIN','UACODE','Values','Probs','Pop']]
+
+comm_blckgrp.to_csv(f'{S3_PATH}gis/csv/1990_comm_blckgrp_dist.csv')
