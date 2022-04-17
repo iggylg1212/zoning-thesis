@@ -9,6 +9,10 @@ from scipy.optimize import LinearConstraint
 from scipy.optimize import NonlinearConstraint
 from scipy.optimize import minimize
 from scipy.linalg import toeplitz
+import nashpy as nash
+import matplotlib.pyplot as plt
+import seaborn as sns
+sns.set_theme(style="darkgrid")
 
 def in_gov(j,c_i,b_i):
     if boundaries[j-1][0] <= (c_i+b_i)/2 <= boundaries[j-1][1]:
@@ -479,3 +483,157 @@ for boundarycondition in boundary_conditions:
 
         governmental_analysis = pd.concat([governmental_analysis,pd.DataFrame.from_dict(gov_payoff)])
         governmental_analysis.to_csv('governmental_analysis.csv',index=False)
+
+########################### NASH 
+data = pd.read_csv('governmental_analysis.csv')
+
+strats1 = list(set(data['strat1']))
+strats2 = list(set(data['strat2']))
+strats1.extend(strats2)
+strats = list(set(strats1))
+
+strategos = pd.DataFrame()
+boundaries = [.45,.5,.55,.6,.65]
+for bound in boundaries:
+    print(bound)
+    subset = data[data['boundary']==bound]
+    ### gov1 
+    gov1_payoffs = np.empty(shape=(len(strats),len(strats)))
+    rows = -1
+    for row in strats:
+        rows+=1
+        columns = -1
+        for col in strats:
+            columns += 1
+            gov1_payoff = subset[(subset['strat1']==row)&(subset['strat2']==col)]['gov1']
+            if len(gov1_payoff)==0:
+                gov1_payoffs[rows][columns] = -10000
+            else:
+                gov1_payoffs[rows][columns] = gov1_payoff
+    ### gov2 
+    gov2_payoffs = np.empty(shape=(len(strats),len(strats)))
+    columns = -1
+    for col in strats:
+        columns+=1
+        rows = -1
+        for row in strats:
+            rows += 1
+            gov2_payoff = subset[(subset['strat1']==row)&(subset['strat2']==col)]['gov2']
+            if len(gov2_payoff)==0:
+                gov2_payoffs[rows][columns] = -10000
+            else:
+                gov2_payoffs[rows][columns] = gov2_payoff
+
+    game1 = nash.Game(gov1_payoffs,gov2_payoffs)
+    equilibria = game1.lemke_howson_enumeration()
+    for eq in equilibria:
+        if np.isnan(eq[0]).any() or np.isnan(eq[1]).any():
+            continue
+        else:
+            implement1 = np.array(np.where(eq[0]>0)[0])
+            implement2 = np.array(np.where(eq[1]>0)[0])
+            if len(implement1)>1 or len(implement2)>1:
+                continue
+            else:
+                strategos = pd.concat([strategos,pd.DataFrame.from_dict({'boundary':[bound],'player1':[strats[implement1[0]]],'player2':[strats[implement2[0]]]})])
+
+strategos.to_csv('nash_equilibrium.csv',index=False)
+
+# ######### ANALYZE NASH
+R = (3/np.pi)**(1/3)
+
+data = pd.read_csv('governmental_analysis.csv')
+data = data[['boundary','strat1','strat2','gov1','gov2','govexp1','govexp2','govpop1','govpop2']]
+
+nashes = pd.read_csv('nash_equilibrium.csv').rename(columns={'player1':'strat1','player2':'strat2'})
+nashes['alpha1'] = nashes['strat1'].apply(lambda x: float(x.split(',')[0]))
+nashes['beta1'] = nashes['strat1'].apply(lambda x: float(x.split(',')[1]))
+nashes['tau1'] = nashes['strat1'].apply(lambda x: float(x.split(',')[2]))
+nashes['gamma1'] = nashes['strat1'].apply(lambda x: float(x.split(',')[3]))
+nashes['alpha2'] = nashes['strat2'].apply(lambda x: float(x.split(',')[0]))
+nashes['beta2'] = nashes['strat2'].apply(lambda x: float(x.split(',')[1]))
+nashes['tau2'] = nashes['strat2'].apply(lambda x: float(x.split(',')[2]))
+nashes['gamma2'] = nashes['strat2'].apply(lambda x: float(x.split(',')[3]))
+
+nashes['perc_2'] = nashes['boundary'].apply(lambda x: 2*np.pi*(.5*(R**3-R*x**2)-(1/3)*(R**3-x**3)))
+
+nashes = nashes.merge(data,on=['strat1','strat2','boundary'],how='left')
+nashes = nashes[['perc_2','gov1','gov2','alpha1','beta1','tau1','gamma1','alpha2','beta2','tau2','gamma2','govexp1','govexp2','govpop1','govpop2']][nashes['gov1']>0].sort_values(by=['perc_2','gov1','gov2'],ascending=[True,False,False])
+nashes = nashes.drop_duplicates(subset=['perc_2','alpha1','beta1','tau1','gamma1','alpha2','beta2','tau2','gamma2'])
+nashes = nashes[nashes['gov2']>0].reset_index(drop=True)
+
+gs = set(nashes['perc_2'])
+best = []
+for g in gs:
+    gov1 = 0
+    gov2 = 0
+    best_indices = []
+    subset = nashes[nashes['perc_2']==g]
+    for index, row in subset.iterrows():
+        if row['gov1']>=gov1 and row['gov2']>=gov2:
+            gov1 = row['gov1']
+            gov2 = row['gov2']
+            best_indices.append(index)
+    best.extend(best_indices)
+
+nashes = nashes.iloc[best].sort_values(by='perc_2',ascending=False)
+nashes[['govexp1','govpop1','govexp2','govpop2']] = nashes[['govexp1','govpop1','govexp2','govpop2']].astype(float)
+
+nashes['govexp1'] = nashes['govexp1']/nashes['govpop1']/100
+nashes['govexp2'] = nashes['govexp2']/nashes['govpop2']/100
+
+nashes['alpha_bar'] = nashes.apply(lambda x: x['perc_2']*x['alpha2']+(1-x['perc_2'])*x['alpha1'], axis=1)
+nashes['beta_bar'] = nashes.apply(lambda x: x['perc_2']*x['beta2']+(1-x['perc_2'])*x['beta1'], axis=1)
+nashes['tau_bar'] = nashes.apply(lambda x: x['perc_2']*x['tau2']+(1-x['perc_2'])*x['tau1'], axis=1)
+nashes['gamma_bar'] = nashes.apply(lambda x: x['perc_2']*x['gamma2']+(1-x['perc_2'])*x['gamma1'], axis=1)
+
+nashes = nashes[['perc_2','alpha1','beta1','tau1','govexp1','gamma1','alpha2','beta2','tau2','gamma2','govexp2','alpha_bar','beta_bar','tau_bar','gamma_bar']]
+nashes = nashes.loc[[21,16,9,4,0]]
+
+nashes.to_csv('final_nash_equilibria.csv',index=False)
+
+###### Create Figures 
+data = pd.read_csv('final_nash_equilibria.csv')
+
+data['Percent #1'] = 1-data['perc_2']
+
+data1 = data[['Percent #1','alpha1','beta1','tau1','gamma1','govexp1']].rename(columns={'alpha1':'Alpha','beta1':'Beta','tau1':'Tau','gamma1':'Gamma','govexp1':'Exp'})
+data1['Govt'] = "#1"
+data2 = data[['Percent #1','alpha2','beta2','tau2','gamma2','govexp2']].rename(columns={'alpha2':'Alpha','beta2':'Beta','tau2':'Tau','gamma2':'Gamma','govexp2':'Exp'})
+data2['Govt'] = "#2"
+
+data_govs = pd.concat([data1, data2]).reset_index(drop=True)
+alphas = sns.lineplot(data=data_govs, x="Percent #1", y="Alpha", hue='Govt').get_figure().savefig("alphas.png")
+plt.clf()
+betas = sns.lineplot(data=data_govs, x="Percent #1", y="Beta", hue='Govt').get_figure().savefig("betas.png")
+plt.clf()
+taus = sns.lineplot(data=data_govs, x="Percent #1", y="Tau", hue='Govt').get_figure().savefig("taus.png")
+plt.clf()
+gammas = sns.lineplot(data=data_govs, x="Percent #1", y="Gamma", hue='Govt').get_figure().savefig("gammas.png")
+plt.clf()
+exp = sns.lineplot(data=data_govs, x="Percent #1", y="Exp", hue='Govt').get_figure().savefig("exp.png")
+plt.clf()
+
+data = data[['Percent #1','alpha_bar','beta_bar','tau_bar','gamma_bar']].rename(columns={'alpha_bar':'Alpha','beta_bar':'Beta','tau_bar':'Tau','gamma_bar':'Gamma'})
+
+data['Alpha'] = data['Alpha']/max(data['Alpha'])
+data_alpha = data[['Percent #1','Alpha']].rename(columns={'Alpha':'% of Max'})
+data_alpha['Value'] = 'Alpha'
+
+data['Beta'] = data['Beta']/max(data['Beta'])
+data_beta = data[['Percent #1','Beta']].rename(columns={'Beta':'% of Max'})
+data_beta['Value'] = 'Beta'
+
+data['Tau'] = data['Tau']/max(data['Tau'])
+data_tau = data[['Percent #1','Tau']].rename(columns={'Tau':'% of Max'})
+data_tau['Value'] = 'Tau'
+
+data['Gamma'] = data['Gamma']/max(data['Gamma'])
+data_gamma = data[['Percent #1','Gamma']].rename(columns={'Gamma':'% of Max'})
+data_gamma['Value'] = 'Gamma'
+
+data = pd.concat([data_alpha,data_beta,data_tau,data_gamma]).reset_index(drop=True)
+
+plt.clf()
+alphas = sns.lineplot(data=data, x="Percent #1", y="% of Max", hue='Value').get_figure().savefig("bars.png")
+plt.clf()
